@@ -5,17 +5,29 @@ import Register from "./pages/Register";
 import Chat from "./pages/Chat";
 import Profile from "./pages/Profile";
 
+import ProtectedRoute from "./components/ProtectedRoute";
+import GuestRoute from "./components/GuestRoute";
+
 const App = () => {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/chat" element={<Chat />} />
-      <Route path="/profile" element={<Profile />} />
+      {/* Guest-only routes */}
+      <Route element={<GuestRoute />}>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+      </Route>
 
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      {/* Authenticated-only routes */}
+      <Route element={<ProtectedRoute />}>
+        <Route path="/chat" element={<Chat />} />
+        <Route path="/profile" element={<Profile />} />
+      </Route>
 
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      {/* Default route */}
+      <Route path="/" element={<Navigate to="/chat" replace />} />
+
+      {/* Unknown routes */}
+      <Route path="*" element={<Navigate to="/chat" replace />} />
     </Routes>
   );
 };
