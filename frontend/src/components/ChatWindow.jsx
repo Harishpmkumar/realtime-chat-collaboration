@@ -60,13 +60,73 @@ const ChatWindow = ({
 
   const firstLetter = displayName?.charAt(0)?.toUpperCase() || "U";
 
+  const formatLastSeen = (date) => {
+    if (!date) {
+      return "Offline";
+    }
+
+    const lastSeenDate = new Date(date);
+    const now = new Date();
+
+    const diffMs = now.getTime() - lastSeenDate.getTime();
+
+    const diffSeconds = Math.floor(diffMs / 1000);
+
+    const diffMinutes = Math.floor(diffSeconds / 60);
+
+    const diffHours = Math.floor(diffMinutes / 60);
+
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffSeconds < 60) {
+      return "Last seen just now";
+    }
+
+    if (diffMinutes < 60) {
+      return `Last seen ${diffMinutes} min ago`;
+    }
+
+    if (lastSeenDate.toDateString() === now.toDateString()) {
+      return `Last seen today at ${lastSeenDate.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+    }
+
+    const yesterday = new Date(now);
+
+    yesterday.setDate(now.getDate() - 1);
+
+    if (lastSeenDate.toDateString() === yesterday.toDateString()) {
+      return `Last seen yesterday at ${lastSeenDate.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+    }
+
+    if (diffDays < 7) {
+      return `Last seen ${lastSeenDate.toLocaleDateString([], {
+        weekday: "short",
+      })} at ${lastSeenDate.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+    }
+
+    return `Last seen ${lastSeenDate.toLocaleDateString([], {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    })}`;
+  };
+
   const statusText = isGroup
     ? `${groupMembers.length} member${
         groupMembers.length !== 1 ? "s" : ""
       } • ${onlineMembers} online`
     : otherUser?.isOnline
       ? "Online"
-      : "Offline";
+      : formatLastSeen(otherUser?.lastSeen);
 
   return (
     <div className="d-flex flex-column h-100 bg-white">

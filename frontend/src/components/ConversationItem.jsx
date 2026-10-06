@@ -17,6 +17,32 @@ const ConversationItem = ({
 
   const lastMessage = conversation.lastMessage;
 
+  const getLastMessagePreview = () => {
+    if (!lastMessage) {
+      return isGroup
+        ? `${conversation.participants?.length || 0} members`
+        : "No messages yet";
+    }
+
+    if (lastMessage.isDeleted) {
+      return "This message was deleted";
+    }
+
+    if (lastMessage.content) {
+      return lastMessage.content;
+    }
+
+    if (lastMessage.messageType === "image") {
+      return "📷 Photo";
+    }
+
+    if (lastMessage.messageType === "file") {
+      return `📎 ${lastMessage.attachment?.originalName || "File"}`;
+    }
+
+    return "Message";
+  };
+
   const displayName = isGroup
     ? conversation.name || "Group"
     : otherUser?.name || "Unknown User";
@@ -131,10 +157,7 @@ const ConversationItem = ({
               unreadCount > 0 ? "text-dark fw-semibold" : "text-muted"
             }`}
           >
-            {lastMessage?.content ||
-              (isGroup
-                ? `${conversation.participants?.length || 0} members`
-                : "No messages yet")}
+            {getLastMessagePreview()}
           </p>
 
           {unreadCount > 0 && (
