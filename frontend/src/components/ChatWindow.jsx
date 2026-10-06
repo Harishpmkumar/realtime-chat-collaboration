@@ -1,17 +1,35 @@
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faArrowLeft,
+  faCircle,
+  faUser,
+  faUsers,
+} from "@fortawesome/free-solid-svg-icons";
+
 import useAuth from "../hooks/useAuth";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
+import TypingIndicator from "./TypingIndicator";
 
-const ChatWindow = ({ conversation, messages, onSendMessage, onBack }) => {
+const ChatWindow = ({
+  conversation,
+  messages,
+  onSendMessage,
+  onBack,
+  typingUser,
+  onGroupDetails,
+}) => {
   const { user } = useAuth();
 
   if (!conversation) {
     return (
       <div className="h-100 d-flex align-items-center justify-content-center bg-white">
-        <div className="text-center text-muted">
-          <div className="fs-1 mb-3">💬</div>
+        <div className="text-center text-muted px-4">
+          <div className="chat-empty-icon mb-3">
+            <FontAwesomeIcon icon={faUsers} size="2x" />
+          </div>
 
-          <h5>Select a conversation</h5>
+          <h5 className="fw-semibold">Select a conversation</h5>
 
           <p className="mb-0">
             Choose someone from the left to start chatting.
@@ -21,48 +39,200 @@ const ChatWindow = ({ conversation, messages, onSendMessage, onBack }) => {
     );
   }
 
-  const otherUser = conversation.participants?.find(
-    (participant) => participant._id !== user?._id,
-  );
+  const currentUserId = user?.id || user?._id;
+
+  const isGroup = conversation.type === "group";
+
+  const otherUser = !isGroup
+    ? conversation.participants?.find(
+        (participant) =>
+          participant._id?.toString() !== currentUserId?.toString(),
+      )
+    : null;
+
+  const groupMembers = conversation.participants || [];
+
+  const onlineMembers = groupMembers.filter((member) => member.isOnline).length;
+
+  const displayName = isGroup
+    ? conversation.name || "Group"
+    : otherUser?.name || "Unknown User";
+
+  const firstLetter = displayName?.charAt(0)?.toUpperCase() || "U";
+
+  const statusText = isGroup
+    ? `${groupMembers.length} member${
+        groupMembers.length !== 1 ? "s" : ""
+      } • ${onlineMembers} online`
+    : otherUser?.isOnline
+      ? "Online"
+      : "Offline";
 
   return (
     <div className="d-flex flex-column h-100 bg-white">
-      {/* Header */}
-      <div className="border-bottom px-3 py-2 d-flex align-items-center">
+      {/* HEADER */}
+
+      <div className="border-bottom px-3 py-3 d-flex align-items-center">
         <button
           type="button"
-          className="btn btn-light d-md-none me-2"
+          className="btn btn-light d-md-none me-3"
           onClick={onBack}
+          title="Back to conversations"
         >
-          ←
+          <FontAwesomeIcon icon={faArrowLeft} />
         </button>
 
-        <div
-          className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3"
-          style={{
-            width: "42px",
-            height: "42px",
+        {/* CLICKABLE GROUP HEADER */}
+
+        <button
+          type="button"
+          className={`border-0 bg-transparent p-0 d-flex align-items-center flex-grow-1 text-start ${
+            isGroup ? "chat-group-header-button" : ""
+          }`}
+          onClick={() => {
+            if (isGroup && onGroupDetails) {
+              onGroupDetails(conversation);
+            }
           }}
+          disabled={!isGroup}
+          title={isGroup ? "View group details" : undefined}
         >
-          {otherUser?.name?.charAt(0).toUpperCase() || "U"}
-        </div>
+          {/* AVATAR */}
 
-        <div>
-          <h6 className="mb-0">{otherUser?.name || "Unknown User"}</h6>
+          <div className="position-relative me-3 flex-shrink-0">
+            {isGroup ? (
+              conversation.groupImage ? (
+                <img
+                  src={conversation.groupImage}
+                  alt={displayName}
+                  className="rounded-circle"
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                    objectFit: "cover",
+                  }}
+                />
+              ) : (
+                <div
+                  className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
+                  style={{
+                    width: "44px",
+                    height: "44px",
+                  }}
+                >
+                  <FontAwesomeIcon icon={faUsers} />
+                </div>
+              )
+            ) : otherUser?.profileImage ? (
+              <img
+                src={otherUser.profileImage}
+                alt={otherUser.name}
+                className="rounded-circle"
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  objectFit: "cover",
+                }}
+              />
+            ) : (
+              <div
+                className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center fw-semibold"
+                style={{
+                  width: "44px",
+                  height: "44px",
+                }}
+              >
+                {firstLetter}
+              </div>
+            )}
 
-          <small
-            className={otherUser?.isOnline ? "text-success" : "text-muted"}
+            {!isGroup && otherUser?.isOnline && (
+              <span
+                className="position-absolute text-success"
+                style={{
+                  right: "-2px",
+                  bottom: "-2px",
+                  fontSize: "13px",
+                  lineHeight: 1,
+                }}
+                title="Online"
+              >
+                <FontAwesomeIcon
+                  icon={faCircle}
+                  className="border border-white rounded-circle"
+                />
+              </span>
+            )}
+          </div>
+
+          {/* NAME + STATUS */}
+
+          <div className="flex-grow-1 min-width-0">
+            <h6 className="mb-1 fw-semibold text-truncate">{displayName}</h6>
+
+            <small
+              className={
+                isGroup
+                  ? "text-muted"
+                  : otherUser?.isOnline
+                    ? "text-success"
+                    : "text-muted"
+              }
+            >
+              {!isGroup && (
+                <FontAwesomeIcon
+                  icon={otherUser?.isOnline ? faCircle : faUser}
+                  className="me-1"
+                  style={{
+                    fontSize: "8px",
+                  }}
+                />
+              )}
+
+              {statusText}
+            </small>
+          </div>
+        </button>
+
+        {/* GROUP MEMBER COUNT */}
+
+        {isGroup && (
+          <button
+            type="button"
+            className="btn btn-light d-flex align-items-center text-muted small ms-2"
+            onClick={() => {
+              if (onGroupDetails) {
+                onGroupDetails(conversation);
+              }
+            }}
+            title="Group details"
           >
-            {otherUser?.isOnline ? "Online" : "Offline"}
-          </small>
-        </div>
+            <FontAwesomeIcon icon={faUsers} className="me-2" />
+
+            <span className="d-none d-sm-inline">{groupMembers.length}</span>
+          </button>
+        )}
       </div>
 
-      {/* Messages */}
+      {/* GROUP DESCRIPTION */}
+
+      {isGroup && conversation.description && (
+        <div className="px-3 py-2 border-bottom bg-light">
+          <small className="text-muted">{conversation.description}</small>
+        </div>
+      )}
+
+      {/* TYPING */}
+
+      {typingUser && <TypingIndicator userName={typingUser} />}
+
+      {/* MESSAGES */}
+
       <MessageList messages={messages} />
 
-      {/* Input */}
-      <MessageInput onSend={onSendMessage} />
+      {/* INPUT */}
+
+      <MessageInput onSend={onSendMessage} conversationId={conversation._id} />
     </div>
   );
 };

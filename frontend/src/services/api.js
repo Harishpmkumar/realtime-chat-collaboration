@@ -3,10 +3,15 @@ const API_URL = "http://localhost:5000/api";
 const request = async (endpoint, options = {}) => {
   const token = localStorage.getItem("token");
 
+  const isFormData = options.body instanceof FormData;
+
   const headers = {
-    "Content-Type": "application/json",
     ...options.headers,
   };
+
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;
@@ -17,10 +22,18 @@ const request = async (endpoint, options = {}) => {
     headers,
   });
 
-  const data = await response.json();
+  const contentType = response.headers.get("content-type");
+
+  let data;
+
+  if (contentType?.includes("application/json")) {
+    data = await response.json();
+  } else {
+    data = null;
+  }
 
   if (!response.ok) {
-    throw new Error(data.message || "Something went wrong");
+    throw new Error(data?.message || "Something went wrong");
   }
 
   return data;
@@ -36,6 +49,12 @@ const api = {
     request(endpoint, {
       method: "POST",
       body: JSON.stringify(body),
+    }),
+
+  postFormData: (endpoint, formData) =>
+    request(endpoint, {
+      method: "POST",
+      body: formData,
     }),
 
   put: (endpoint, body) =>

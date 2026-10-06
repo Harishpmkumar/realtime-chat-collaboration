@@ -3,7 +3,11 @@ const mongoose = require("mongoose");
 const Message = require("../models/Message");
 const Conversation = require("../models/Conversation");
 
+// =========================================================
+// GET MESSAGES
 // GET /api/conversations/:id/messages
+// =========================================================
+
 const getMessages = async (req, res) => {
   try {
     const { id } = req.params;
@@ -31,11 +35,14 @@ const getMessages = async (req, res) => {
       conversation: id,
     })
       .populate("sender", "name email profileImage")
-      .sort({ createdAt: 1 });
+      .sort({
+        createdAt: 1,
+      });
 
     return res.status(200).json({
       success: true,
       count: messages.length,
+
       data: {
         messages,
       },
@@ -50,11 +57,16 @@ const getMessages = async (req, res) => {
   }
 };
 
+// =========================================================
+// SEND MESSAGE
 // POST /api/conversations/:id/messages
+// =========================================================
+
 const sendMessage = async (req, res) => {
   try {
     const { id } = req.params;
-    const { content, messageType = "text" } = req.body;
+
+    const { content = "", messageType = "text", attachment = null } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -63,10 +75,18 @@ const sendMessage = async (req, res) => {
       });
     }
 
-    if (!content || !content.trim()) {
+    const trimmedContent = typeof content === "string" ? content.trim() : "";
+
+    const hasAttachment =
+      attachment &&
+      attachment.url &&
+      attachment.originalName &&
+      attachment.mimeType;
+
+    if (!trimmedContent && !hasAttachment) {
       return res.status(400).json({
         success: false,
-        message: "Message content is required",
+        message: "Message content or attachment is required",
       });
     }
 
@@ -92,19 +112,22 @@ const sendMessage = async (req, res) => {
     const message = await Message.create({
       conversation: id,
       sender: req.user._id,
-      content: content.trim(),
+      content: trimmedContent,
       messageType,
+      attachment: hasAttachment ? attachment : null,
+      isRead: false,
     });
 
     await message.populate("sender", "name email profileImage");
 
-    // Update conversation's latest activity
     conversation.updatedAt = new Date();
+
     await conversation.save();
 
     return res.status(201).json({
       success: true,
       message: "Message sent successfully",
+
       data: {
         message,
       },
@@ -119,7 +142,55 @@ const sendMessage = async (req, res) => {
   }
 };
 
+// =========================================================
+// UPLOAD MESSAGE ATTACHMENT
+// POST /api/messages/upload
+// =========================================================
+
+const uploadAttachment = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select a file",
+      });
+    }
+
+    const isImage = req.file.mimetype.startsWith("image/");
+
+    const attachment = {
+      originalName: req.file.originalname,
+      fileName: req.file.filename,
+      mimeType: req.file.mimetype,
+      size: req.file.size,
+      url: `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`,
+    };
+
+    return res.status(201).json({
+      success: true,
+      message: "File uploaded successfully",
+
+      data: {
+        attachment,
+
+        messageType: isImage ? "image" : "file",
+      },
+    });
+  } catch (error) {
+    console.error("Upload attachment error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload attachment",
+    });
+  }
+};
+
+// =========================================================
+// MARK MESSAGE AS READ
 // PATCH /api/messages/:id/read
+// =========================================================
+
 const markMessageAsRead = async (req, res) => {
   try {
     const { id } = req.params;
@@ -153,11 +224,13 @@ const markMessageAsRead = async (req, res) => {
     }
 
     message.isRead = true;
+
     await message.save();
 
     return res.status(200).json({
       success: true,
       message: "Message marked as read",
+
       data: {
         message,
       },
@@ -175,5 +248,6 @@ const markMessageAsRead = async (req, res) => {
 module.exports = {
   getMessages,
   sendMessage,
+  uploadAttachment,
   markMessageAsRead,
 };

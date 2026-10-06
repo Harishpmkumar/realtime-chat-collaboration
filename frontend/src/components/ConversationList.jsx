@@ -1,4 +1,10 @@
-import { useState } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faComments,
+  faPlus,
+  faUserGroup,
+} from "@fortawesome/free-solid-svg-icons";
+
 import ConversationItem from "./ConversationItem";
 
 const ConversationList = ({
@@ -6,60 +12,113 @@ const ConversationList = ({
   selectedConversation,
   onSelectConversation,
   currentUserId,
+  onNewConversation,
+  onNewGroup,
 }) => {
-  const [search, setSearch] = useState("");
-
-  const filteredConversations = conversations.filter((conversation) => {
-    const otherUser = conversation.participants?.find(
-      (participant) => participant._id !== currentUserId,
-    );
-
-    return otherUser?.name?.toLowerCase().includes(search.toLowerCase());
-  });
-
   return (
-    <div className="conversation-panel h-100 d-flex flex-column bg-white">
-      <div className="p-3 border-bottom">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <div>
-            <h5 className="fw-bold mb-0">Messages</h5>
-
-            <small className="text-muted">Your conversations</small>
+    <div className="bg-white h-100 d-flex flex-column">
+      <div className="px-3 py-3 border-bottom">
+        <div className="d-flex align-items-center">
+          <div
+            className="bg-primary text-white rounded-3 d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+            style={{
+              width: "42px",
+              height: "42px",
+            }}
+          >
+            <FontAwesomeIcon icon={faComments} />
           </div>
 
-          <button className="btn btn-primary btn-sm rounded-circle">+</button>
-        </div>
+          <div className="flex-grow-1 min-width-0">
+            <h5 className="mb-1 fw-bold">Chats</h5>
 
-        <div className="input-group">
-          <span className="input-group-text bg-light border-end-0">🔍</span>
+            <small className="text-muted">
+              {conversations.length} conversation
+              {conversations.length !== 1 ? "s" : ""}
+            </small>
+          </div>
 
-          <input
-            type="text"
-            className="form-control bg-light border-start-0"
-            placeholder="Search conversations..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <div className="d-flex gap-2">
+            <button
+              type="button"
+              className="btn btn-light border rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
+              style={{
+                width: "40px",
+                height: "40px",
+              }}
+              onClick={onNewGroup}
+              title="Create group"
+            >
+              <FontAwesomeIcon icon={faUserGroup} className="text-primary" />
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm flex-shrink-0"
+              style={{
+                width: "42px",
+                height: "42px",
+              }}
+              onClick={onNewConversation}
+              title="New conversation"
+            >
+              <FontAwesomeIcon icon={faPlus} />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="list-group list-group-flush overflow-auto flex-grow-1">
-        {filteredConversations.length === 0 ? (
-          <div className="text-center text-muted p-4">
-            <div className="fs-1 mb-2">💬</div>
+      <div className="flex-grow-1 overflow-auto">
+        {conversations.length === 0 ? (
+          <div className="p-4 text-center text-muted">
+            <div
+              className="rounded-circle bg-light d-flex align-items-center justify-content-center mx-auto mb-3"
+              style={{
+                width: "70px",
+                height: "70px",
+              }}
+            >
+              <FontAwesomeIcon
+                icon={faComments}
+                size="2x"
+                className="text-secondary"
+              />
+            </div>
 
-            <p className="mb-1">No conversations</p>
+            <h6 className="fw-semibold">No conversations</h6>
 
-            <small>Start a new conversation</small>
+            <p className="small mb-3">
+              Start a new conversation or create a group.
+            </p>
+
+            <div className="d-flex justify-content-center gap-2">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={onNewConversation}
+              >
+                <FontAwesomeIcon icon={faPlus} className="me-2" />
+                New Chat
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-outline-primary btn-sm"
+                onClick={onNewGroup}
+              >
+                <FontAwesomeIcon icon={faUserGroup} className="me-2" />
+                Group
+              </button>
+            </div>
           </div>
         ) : (
-          filteredConversations.map((conversation) => (
+          conversations.map((conversation) => (
             <ConversationItem
               key={conversation._id}
               conversation={conversation}
+              currentUserId={currentUserId}
               selected={selectedConversation?._id === conversation._id}
               onClick={() => onSelectConversation(conversation)}
-              currentUserId={currentUserId}
             />
           ))
         )}
