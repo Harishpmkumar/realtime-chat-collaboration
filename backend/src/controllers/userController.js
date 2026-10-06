@@ -1,10 +1,16 @@
 const User = require("../models/User");
 
+// =====================================================
+// GET USERS
 // GET /api/users
+// =====================================================
+
 const getUsers = async (req, res) => {
   try {
     const users = await User.find({
-      _id: { $ne: req.user._id },
+      _id: {
+        $ne: req.user._id,
+      },
     }).select("name email profileImage about isOnline lastSeen createdAt");
 
     return res.status(200).json({
@@ -24,7 +30,11 @@ const getUsers = async (req, res) => {
   }
 };
 
+// =====================================================
+// SEARCH USERS
 // GET /api/users/search?q=harish
+// =====================================================
+
 const searchUsers = async (req, res) => {
   try {
     const { q } = req.query;
@@ -39,7 +49,10 @@ const searchUsers = async (req, res) => {
     const searchTerm = q.trim();
 
     const users = await User.find({
-      _id: { $ne: req.user._id },
+      _id: {
+        $ne: req.user._id,
+      },
+
       $or: [
         {
           name: {
@@ -47,6 +60,7 @@ const searchUsers = async (req, res) => {
             $options: "i",
           },
         },
+
         {
           email: {
             $regex: searchTerm,
@@ -59,6 +73,7 @@ const searchUsers = async (req, res) => {
     return res.status(200).json({
       success: true,
       count: users.length,
+
       data: {
         users,
       },
@@ -73,7 +88,11 @@ const searchUsers = async (req, res) => {
   }
 };
 
+// =====================================================
+// GET USER BY ID
 // GET /api/users/:id
+// =====================================================
+
 const getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select(
@@ -89,6 +108,7 @@ const getUserById = async (req, res) => {
 
     return res.status(200).json({
       success: true,
+
       data: {
         user,
       },
@@ -103,7 +123,11 @@ const getUserById = async (req, res) => {
   }
 };
 
+// =====================================================
+// UPDATE PROFILE
 // PUT /api/users/profile
+// =====================================================
+
 const updateProfile = async (req, res) => {
   try {
     const { name, profileImage, about } = req.body;
@@ -111,29 +135,40 @@ const updateProfile = async (req, res) => {
     const updates = {};
 
     if (name !== undefined) {
-      if (name.trim().length < 2) {
+      const trimmedName = String(name).trim();
+
+      if (trimmedName.length < 2) {
         return res.status(400).json({
           success: false,
           message: "Name must be at least 2 characters",
         });
       }
 
-      updates.name = name.trim();
+      if (trimmedName.length > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Name must not exceed 100 characters",
+        });
+      }
+
+      updates.name = trimmedName;
     }
 
     if (profileImage !== undefined) {
-      updates.profileImage = profileImage;
+      updates.profileImage = String(profileImage).trim();
     }
 
     if (about !== undefined) {
-      if (about.length > 150) {
+      const trimmedAbout = String(about).trim();
+
+      if (trimmedAbout.length > 150) {
         return res.status(400).json({
           success: false,
           message: "About must not exceed 150 characters",
         });
       }
 
-      updates.about = about.trim();
+      updates.about = trimmedAbout;
     }
 
     const user = await User.findByIdAndUpdate(req.user._id, updates, {
@@ -143,9 +178,17 @@ const updateProfile = async (req, res) => {
       "name email profileImage about isOnline lastSeen createdAt updatedAt",
     );
 
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "Profile updated successfully",
+
       data: {
         user,
       },
@@ -160,9 +203,46 @@ const updateProfile = async (req, res) => {
   }
 };
 
+// =====================================================
+// UPLOAD PROFILE IMAGE
+// POST /api/users/profile/image
+// =====================================================
+
+const uploadProfileImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "Profile image is required",
+      });
+    }
+
+    const profileImage = `${req.protocol}://${req.get(
+      "host",
+    )}/uploads/profiles/${req.file.filename}`;
+
+    return res.status(201).json({
+      success: true,
+      message: "Profile image uploaded successfully",
+
+      data: {
+        profileImage,
+      },
+    });
+  } catch (error) {
+    console.error("Profile image upload error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to upload profile image",
+    });
+  }
+};
+
 module.exports = {
   getUsers,
   searchUsers,
   getUserById,
   updateProfile,
+  uploadProfileImage,
 };
