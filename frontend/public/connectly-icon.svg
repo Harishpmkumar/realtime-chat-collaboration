@@ -1,0 +1,67 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 64 64"
+>
+  <defs>
+    <linearGradient
+      id="connectlyGradient"
+      x1="0"
+      y1="0"
+      x2="1"
+      y2="1"
+    >
+      <stop
+        offset="0%"
+        stop-color="#635bff"
+      />
+
+      <stop
+        offset="100%"
+        stop-color="#7c3aed"
+      />
+    </linearGradient>
+  </defs>
+
+  <rect
+    width="64"
+    height="64"
+    rx="18"
+    fill="url(#connectlyGradient)"
+  />
+
+  <path
+    d="M18 20
+       C18 15.6 21.6 12 26 12
+       H38
+       C42.4 12 46 15.6 46 20
+       V31
+       C46 35.4 42.4 39 38 39
+       H30
+       L22 46
+       V39
+       C19.8 39 18 37.2 18 35
+       Z"
+    fill="#ffffff"
+  />
+
+  <circle
+    cx="26"
+    cy="26"
+    r="2.4"
+    fill="#635bff"
+  />
+
+  <circle
+    cx="32"
+    cy="26"
+    r="2.4"
+    fill="#635bff"
+  />
+
+  <circle
+    cx="38"
+    cy="26"
+    r="2.4"
+    fill="#635bff"
+  />
+</svg>
