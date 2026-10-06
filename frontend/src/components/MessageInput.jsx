@@ -12,6 +12,8 @@ import {
   faSpinner,
 } from "@fortawesome/free-solid-svg-icons";
 
+import EmojiPicker from "emoji-picker-react";
+
 import api from "../services/api";
 import useSocket from "../hooks/useSocket";
 
@@ -62,10 +64,34 @@ const MessageInput = ({ onSend, conversationId }) => {
 
   const [error, setError] = useState("");
 
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
   const typingTimeoutRef = useRef(null);
+
   const isTypingRef = useRef(false);
 
   const fileInputRef = useRef(null);
+
+  const textareaRef = useRef(null);
+
+  const emojiPickerRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(event.target)
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -97,9 +123,7 @@ const MessageInput = ({ onSend, conversationId }) => {
     }
   };
 
-  const handleTyping = (value) => {
-    setMessage(value);
-
+  const emitTyping = (value) => {
     if (!socket || !conversationId) {
       return;
     }
@@ -129,13 +153,57 @@ const MessageInput = ({ onSend, conversationId }) => {
     }, 1500);
   };
 
+  const handleTyping = (value) => {
+    setMessage(value);
+
+    emitTyping(value);
+  };
+
+  const handleEmojiSelect = (emojiData) => {
+    const emoji = emojiData.emoji;
+
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      const updatedMessage = `${message}${emoji}`;
+
+      setMessage(updatedMessage);
+
+      emitTyping(updatedMessage);
+
+      return;
+    }
+
+    const start = textarea.selectionStart ?? message.length;
+
+    const end = textarea.selectionEnd ?? message.length;
+
+    const updatedMessage = `${message.slice(0, start)}${emoji}${message.slice(
+      end,
+    )}`;
+
+    setMessage(updatedMessage);
+
+    emitTyping(updatedMessage);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+
+      const cursorPosition = start + emoji.length;
+
+      textarea.setSelectionRange(cursorPosition, cursorPosition);
+    });
+  };
+
   const clearSelectedFile = () => {
     if (previewUrl) {
       URL.revokeObjectURL(previewUrl);
     }
 
     setSelectedFile(null);
+
     setPreviewUrl("");
+
     setError("");
 
     if (fileInputRef.current) {
@@ -218,7 +286,10 @@ const MessageInput = ({ onSend, conversationId }) => {
 
     try {
       setUploading(true);
+
       setError("");
+
+      setShowEmojiPicker(false);
 
       let attachment = null;
 
@@ -246,9 +317,9 @@ const MessageInput = ({ onSend, conversationId }) => {
 
       stopTyping();
     } catch (error) {
-      console.error("Attachment send error:", error);
+      console.error("Message send error:", error);
 
-      setError(error.message || "Failed to send attachment");
+      setError(error.message || "Failed to send message");
     } finally {
       setUploading(false);
     }
@@ -267,7 +338,7 @@ const MessageInput = ({ onSend, conversationId }) => {
   const canSend = Boolean(message.trim()) || Boolean(selectedFile);
 
   return (
-    <div className="border-top bg-white p-3">
+    <div className="border-top bg-white p-3 position-relative">
       {error && (
         <div className="alert alert-danger py-2 small mb-2">{error}</div>
       )}
@@ -287,7 +358,9 @@ const MessageInput = ({ onSend, conversationId }) => {
                 className="rounded"
                 style={{
                   width: "64px",
+
                   height: "64px",
+
                   objectFit: "cover",
                 }}
               />
@@ -296,6 +369,7 @@ const MessageInput = ({ onSend, conversationId }) => {
                 className="rounded bg-white border d-flex align-items-center justify-content-center text-primary flex-shrink-0"
                 style={{
                   width: "64px",
+
                   height: "64px",
                 }}
               >
@@ -344,6 +418,7 @@ const MessageInput = ({ onSend, conversationId }) => {
             className="btn btn-light rounded-circle flex-shrink-0"
             style={{
               width: "42px",
+
               height: "42px",
             }}
             title="Attach file"
@@ -355,6 +430,7 @@ const MessageInput = ({ onSend, conversationId }) => {
 
           <div className="flex-grow-1 position-relative">
             <textarea
+              ref={textareaRef}
               value={message}
               onChange={(event) => handleTyping(event.target.value)}
               onKeyDown={handleKeyDown}
@@ -364,19 +440,49 @@ const MessageInput = ({ onSend, conversationId }) => {
               disabled={uploading}
               style={{
                 resize: "none",
+
                 paddingRight: "45px",
+
                 maxHeight: "120px",
               }}
             />
 
-            <button
-              type="button"
-              className="btn btn-link text-muted position-absolute end-0 bottom-0 mb-1 me-1"
-              title="Emoji"
-              disabled={uploading}
-            >
-              <FontAwesomeIcon icon={faFaceSmile} />
-            </button>
+            <div ref={emojiPickerRef}>
+              {showEmojiPicker && (
+                <div
+                  className="position-absolute shadow rounded-3"
+                  style={{
+                    right: "0",
+
+                    bottom: "52px",
+
+                    zIndex: 1050,
+                  }}
+                >
+                  <EmojiPicker
+                    onEmojiClick={handleEmojiSelect}
+                    width={330}
+                    height={420}
+                    searchPlaceHolder="Search emoji..."
+                    previewConfig={{
+                      showPreview: false,
+                    }}
+                    lazyLoadEmojis
+                    skinTonesDisabled={false}
+                  />
+                </div>
+              )}
+
+              <button
+                type="button"
+                className="btn btn-link text-muted position-absolute end-0 bottom-0 mb-1 me-1"
+                title="Emoji"
+                disabled={uploading}
+                onClick={() => setShowEmojiPicker((previous) => !previous)}
+              >
+                <FontAwesomeIcon icon={faFaceSmile} />
+              </button>
+            </div>
           </div>
 
           <button
@@ -384,6 +490,7 @@ const MessageInput = ({ onSend, conversationId }) => {
             className="btn btn-primary rounded-circle flex-shrink-0 d-flex align-items-center justify-content-center"
             style={{
               width: "42px",
+
               height: "42px",
             }}
             disabled={!canSend || uploading}
