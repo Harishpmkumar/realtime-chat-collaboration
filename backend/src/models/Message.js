@@ -32,6 +32,26 @@ const attachmentSchema = new mongoose.Schema(
   },
 );
 
+const reactionSchema = new mongoose.Schema(
+  {
+    emoji: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    users: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+  },
+  {
+    _id: false,
+  },
+);
+
 const messageSchema = new mongoose.Schema(
   {
     conversation: {
@@ -64,9 +84,40 @@ const messageSchema = new mongoose.Schema(
       default: null,
     },
 
+    reactions: {
+      type: [reactionSchema],
+      default: [],
+    },
+
     isRead: {
       type: Boolean,
       default: false,
+    },
+
+    isEdited: {
+      type: Boolean,
+      default: false,
+    },
+
+    editedAt: {
+      type: Date,
+      default: null,
+    },
+
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
   },
   {
@@ -74,11 +125,11 @@ const messageSchema = new mongoose.Schema(
   },
 );
 
-// A message must contain either text or an attachment.
-//
-// Do not use callback-style `next()` here.
-// Modern Mongoose middleware supports synchronous middleware directly.
 messageSchema.pre("validate", function validateMessage() {
+  if (this.isDeleted) {
+    return;
+  }
+
   const hasContent =
     typeof this.content === "string" && this.content.trim().length > 0;
 

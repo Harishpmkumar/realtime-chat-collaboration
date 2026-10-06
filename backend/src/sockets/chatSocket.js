@@ -248,6 +248,267 @@ const chatSocket = (io) => {
     );
 
     // =====================================================
+    // EDIT MESSAGE
+    // =====================================================
+
+    socket.on("edit_message", async ({ messageId, content }) => {
+      try {
+        if (!mongoose.Types.ObjectId.isValid(messageId)) {
+          socket.emit("socket_error", {
+            message: "Invalid message ID",
+          });
+
+          return;
+        }
+
+        const trimmedContent =
+          typeof content === "string" ? content.trim() : "";
+
+        if (!trimmedContent) {
+          socket.emit("socket_error", {
+            message: "Message cannot be empty",
+          });
+
+          return;
+        }
+
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+          socket.emit("socket_error", {
+            message: "Message not found",
+          });
+
+          return;
+        }
+
+        if (message.sender.toString() !== userId) {
+          socket.emit("socket_error", {
+            message: "You can only edit your own messages",
+          });
+
+          return;
+        }
+
+        if (message.isDeleted) {
+          socket.emit("socket_error", {
+            message: "Deleted messages cannot be edited",
+          });
+
+          return;
+        }
+
+        const conversation = await Conversation.findOne({
+          _id: message.conversation,
+          participants: userId,
+        });
+
+        if (!conversation) {
+          socket.emit("socket_error", {
+            message: "Conversation not found",
+          });
+
+          return;
+        }
+
+        message.content = trimmedContent;
+        message.isEdited = true;
+        message.editedAt = new Date();
+
+        await message.save();
+
+        await message.populate("sender", "name email profileImage");
+
+        conversation.participants.forEach((participantId) => {
+          io.to(`user:${participantId.toString()}`).emit(
+            "message_updated",
+            message,
+          );
+        });
+      } catch (error) {
+        console.error("Edit message error:", error);
+
+        socket.emit("socket_error", {
+          message: "Failed to edit message",
+        });
+      }
+    });
+
+    // =====================================================
+    // DELETE MESSAGE
+    // =====================================================
+
+    socket.on("delete_message", async (messageId) => {
+      try {
+        if (!mongoose.Types.ObjectId.isValid(messageId)) {
+          socket.emit("socket_error", {
+            message: "Invalid message ID",
+          });
+
+          return;
+        }
+
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+          socket.emit("socket_error", {
+            message: "Message not found",
+          });
+
+          return;
+        }
+
+        if (message.sender.toString() !== userId) {
+          socket.emit("socket_error", {
+            message: "You can only delete your own messages",
+          });
+
+          return;
+        }
+
+        if (message.isDeleted) {
+          return;
+        }
+
+        const conversation = await Conversation.findOne({
+          _id: message.conversation,
+          participants: userId,
+        });
+
+        if (!conversation) {
+          socket.emit("socket_error", {
+            message: "Conversation not found",
+          });
+
+          return;
+        }
+
+        message.content = "";
+        message.attachment = null;
+        message.messageType = "text";
+        message.reactions = [];
+
+        message.isDeleted = true;
+        message.deletedAt = new Date();
+        message.deletedBy = userId;
+
+        await message.save();
+
+        await message.populate("sender", "name email profileImage");
+
+        conversation.participants.forEach((participantId) => {
+          io.to(`user:${participantId.toString()}`).emit(
+            "message_updated",
+            message,
+          );
+        });
+      } catch (error) {
+        console.error("Delete message error:", error);
+
+        socket.emit("socket_error", {
+          message: "Failed to delete message",
+        });
+      }
+    });
+
+    // =====================================================
+    // MESSAGE REACTION
+    // =====================================================
+
+    socket.on("react_message", async ({ messageId, emoji }) => {
+      try {
+        if (!mongoose.Types.ObjectId.isValid(messageId)) {
+          socket.emit("socket_error", {
+            message: "Invalid message ID",
+          });
+
+          return;
+        }
+
+        const normalizedEmoji = typeof emoji === "string" ? emoji.trim() : "";
+
+        if (!normalizedEmoji || normalizedEmoji.length > 20) {
+          socket.emit("socket_error", {
+            message: "Invalid reaction",
+          });
+
+          return;
+        }
+
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+          socket.emit("socket_error", {
+            message: "Message not found",
+          });
+
+          return;
+        }
+
+        if (message.isDeleted) {
+          return;
+        }
+
+        const conversation = await Conversation.findOne({
+          _id: message.conversation,
+          participants: userId,
+        });
+
+        if (!conversation) {
+          socket.emit("socket_error", {
+            message: "Conversation not found",
+          });
+
+          return;
+        }
+
+        const existingReaction = message.reactions.find(
+          (reaction) => reaction.emoji === normalizedEmoji,
+        );
+
+        if (existingReaction) {
+          const existingUserIndex = existingReaction.users.findIndex(
+            (reactionUserId) => reactionUserId.toString() === userId,
+          );
+
+          if (existingUserIndex >= 0) {
+            existingReaction.users.splice(existingUserIndex, 1);
+
+            if (existingReaction.users.length === 0) {
+              message.reactions = message.reactions.filter(
+                (reaction) => reaction.emoji !== normalizedEmoji,
+              );
+            }
+          } else {
+            existingReaction.users.push(userId);
+          }
+        } else {
+          message.reactions.push({
+            emoji: normalizedEmoji,
+            users: [userId],
+          });
+        }
+
+        await message.save();
+
+        await message.populate("sender", "name email profileImage");
+
+        conversation.participants.forEach((participantId) => {
+          io.to(`user:${participantId.toString()}`).emit(
+            "message_updated",
+            message,
+          );
+        });
+      } catch (error) {
+        console.error("Reaction error:", error);
+
+        socket.emit("socket_error", {
+          message: "Failed to update reaction",
+        });
+      }
+    });
+
+    // =====================================================
     // TYPING
     // =====================================================
 

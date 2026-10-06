@@ -193,6 +193,48 @@ const Chat = () => {
   }, [socket, selectedConversation]);
 
   // =========================================================
+  // MESSAGE UPDATED - EDIT / DELETE / REACTION
+  // =========================================================
+
+  useEffect(() => {
+    if (!socket) {
+      return;
+    }
+
+    const handleMessageUpdated = (updatedMessage) => {
+      setMessages((previousMessages) =>
+        previousMessages.map((message) =>
+          message._id?.toString() === updatedMessage._id?.toString()
+            ? updatedMessage
+            : message,
+        ),
+      );
+
+      setConversations((previousConversations) =>
+        previousConversations.map((conversation) => {
+          const lastMessageId =
+            conversation.lastMessage?._id || conversation.lastMessage;
+
+          if (lastMessageId?.toString() !== updatedMessage._id?.toString()) {
+            return conversation;
+          }
+
+          return {
+            ...conversation,
+            lastMessage: updatedMessage,
+          };
+        }),
+      );
+    };
+
+    socket.on("message_updated", handleMessageUpdated);
+
+    return () => {
+      socket.off("message_updated", handleMessageUpdated);
+    };
+  }, [socket]);
+
+  // =========================================================
   // REAL-TIME CONVERSATION LIST UPDATE
   // =========================================================
 
