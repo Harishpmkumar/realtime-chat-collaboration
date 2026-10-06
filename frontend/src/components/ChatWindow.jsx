@@ -288,7 +288,7 @@ const ChatWindow = ({
 
       {/* MESSAGES */}
 
-      <MessageList messages={messages} />
+      <MessageList messages={messages} conversation={conversation} />
 
       {/* INPUT */}
 

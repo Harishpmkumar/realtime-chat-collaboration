@@ -1,4 +1,5 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+
 import {
   faComments,
   faPlus,
@@ -16,49 +17,37 @@ const ConversationList = ({
   onNewGroup,
 }) => {
   return (
-    <div className="bg-white h-100 d-flex flex-column">
-      <div className="px-3 py-3 border-bottom">
+    <div className="conversation-list-shell">
+      {/* HEADER */}
+
+      <div className="conversation-list-header">
         <div className="d-flex align-items-center">
-          <div
-            className="bg-primary text-white rounded-3 d-flex align-items-center justify-content-center me-3 flex-shrink-0"
-            style={{
-              width: "42px",
-              height: "42px",
-            }}
-          >
+          <div className="conversation-list-icon">
             <FontAwesomeIcon icon={faComments} />
           </div>
 
           <div className="flex-grow-1 min-width-0">
-            <h5 className="mb-1 fw-bold">Chats</h5>
+            <h5 className="conversation-list-title">Messages</h5>
 
-            <small className="text-muted">
+            <div className="conversation-list-count">
               {conversations.length} conversation
               {conversations.length !== 1 ? "s" : ""}
-            </small>
+            </div>
           </div>
 
           <div className="d-flex gap-2">
             <button
               type="button"
-              className="btn btn-light border rounded-circle d-flex align-items-center justify-content-center flex-shrink-0"
-              style={{
-                width: "40px",
-                height: "40px",
-              }}
+              className="conversation-header-action"
               onClick={onNewGroup}
               title="Create group"
             >
-              <FontAwesomeIcon icon={faUserGroup} className="text-primary" />
+              <FontAwesomeIcon icon={faUserGroup} />
             </button>
 
             <button
               type="button"
-              className="btn btn-primary rounded-circle d-flex align-items-center justify-content-center shadow-sm flex-shrink-0"
-              style={{
-                width: "42px",
-                height: "42px",
-              }}
+              className="conversation-header-action primary"
               onClick={onNewConversation}
               title="New conversation"
             >
@@ -68,42 +57,32 @@ const ConversationList = ({
         </div>
       </div>
 
-      <div className="flex-grow-1 overflow-auto">
+      {/* LIST */}
+
+      <div className="conversation-list-scroll">
         {conversations.length === 0 ? (
-          <div className="p-4 text-center text-muted">
-            <div
-              className="rounded-circle bg-light d-flex align-items-center justify-content-center mx-auto mb-3"
-              style={{
-                width: "70px",
-                height: "70px",
-              }}
-            >
-              <FontAwesomeIcon
-                icon={faComments}
-                size="2x"
-                className="text-secondary"
-              />
+          <div className="conversation-empty-state">
+            <div className="conversation-empty-icon">
+              <FontAwesomeIcon icon={faComments} />
             </div>
 
-            <h6 className="fw-semibold">No conversations</h6>
+            <h6>No conversations yet</h6>
 
-            <p className="small mb-3">
-              Start a new conversation or create a group.
-            </p>
+            <p>Start chatting with someone or create a group.</p>
 
-            <div className="d-flex justify-content-center gap-2">
+            <div className="d-flex justify-content-center gap-2 flex-wrap">
               <button
                 type="button"
-                className="btn btn-primary btn-sm"
+                className="btn btn-primary btn-sm rounded-3"
                 onClick={onNewConversation}
               >
                 <FontAwesomeIcon icon={faPlus} className="me-2" />
-                New Chat
+                New chat
               </button>
 
               <button
                 type="button"
-                className="btn btn-outline-primary btn-sm"
+                className="btn btn-outline-primary btn-sm rounded-3"
                 onClick={onNewGroup}
               >
                 <FontAwesomeIcon icon={faUserGroup} className="me-2" />

@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faCircle,
-  faCircleExclamation,
-} from "@fortawesome/free-solid-svg-icons";
+import { faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
 
 import api from "../services/api";
 import useAuth from "../hooks/useAuth";
@@ -772,7 +769,7 @@ const Chat = () => {
 
   return (
     <div className="chat-page d-flex flex-column">
-      <Navbar />
+      <Navbar socketConnected={socketConnected} />
 
       {/* ERROR */}
 
@@ -791,22 +788,6 @@ const Chat = () => {
           </div>
         </div>
       )}
-
-      {/* SOCKET STATUS */}
-
-      <div className="container-fluid px-3 pb-2">
-        <small className={socketConnected ? "text-success" : "text-danger"}>
-          <FontAwesomeIcon
-            icon={faCircle}
-            className="me-1"
-            style={{
-              fontSize: "7px",
-            }}
-          />
-
-          {socketConnected ? "Connected" : "Disconnected"}
-        </small>
-      </div>
 
       {/* CHAT AREA */}
 

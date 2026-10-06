@@ -74,8 +74,8 @@ const ConversationItem = ({
     <button
       type="button"
       onClick={onClick}
-      className={`w-100 border-0 text-start px-3 py-3 d-flex align-items-center conversation-item ${
-        selected ? "bg-primary-subtle" : "bg-white"
+      className={`w-100 border-0 text-start d-flex align-items-center conversation-item ${
+        selected ? "conversation-item-selected" : ""
       }`}
     >
       <div

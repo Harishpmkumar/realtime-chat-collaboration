@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
+import { createPortal } from "react-dom";
+
+import EmojiPicker from "emoji-picker-react";
+
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 
 import {
@@ -17,11 +21,9 @@ import {
   faPen,
   faTrash,
   faXmark,
-  faCheck as faSave,
   faPlus,
+  faTriangleExclamation,
 } from "@fortawesome/free-solid-svg-icons";
-
-import EmojiPicker from "emoji-picker-react";
 
 import useAuth from "../hooks/useAuth";
 import useSocket from "../hooks/useSocket";
@@ -64,35 +66,66 @@ const getFileIcon = (mimeType = "") => {
   return faFile;
 };
 
-const MessageList = ({ messages }) => {
+const MessageList = ({ messages, conversation }) => {
   const { user } = useAuth();
   const { socket } = useSocket();
 
   const messagesEndRef = useRef(null);
 
+  const previousLastMessageIdRef = useRef(null);
+
   const [actionMessageId, setActionMessageId] = useState(null);
 
   const [reactionMessageId, setReactionMessageId] = useState(null);
 
-  const [fullReactionPickerMessageId, setFullReactionPickerMessageId] =
-    useState(null);
+  const [fullReactionPicker, setFullReactionPicker] = useState(null);
 
   const [editingMessageId, setEditingMessageId] = useState(null);
 
   const [editValue, setEditValue] = useState("");
 
+  const [deleteTarget, setDeleteTarget] = useState(null);
+
   const currentUserId = user?.id || user?._id;
 
+  const isGroup = conversation?.type === "group";
+
+  const lastMessageId = messages?.length
+    ? messages[messages.length - 1]?._id
+    : null;
+
   useEffect(() => {
-    if (!messages?.length) {
+    if (!lastMessageId) {
       return;
     }
+
+    if (previousLastMessageIdRef.current === lastMessageId) {
+      return;
+    }
+
+    previousLastMessageIdRef.current = lastMessageId;
 
     messagesEndRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "end",
     });
-  }, [messages]);
+  }, [lastMessageId]);
+
+  useEffect(() => {
+    if (!fullReactionPicker) {
+      return;
+    }
+
+    const closePicker = () => {
+      setFullReactionPicker(null);
+    };
+
+    window.addEventListener("resize", closePicker);
+
+    return () => {
+      window.removeEventListener("resize", closePicker);
+    };
+  }, [fullReactionPicker]);
 
   const handleReaction = (messageId, emoji) => {
     if (!socket) {
@@ -105,12 +138,44 @@ const MessageList = ({ messages }) => {
     });
 
     setReactionMessageId(null);
-    setFullReactionPickerMessageId(null);
+    setFullReactionPicker(null);
     setActionMessageId(null);
   };
 
-  const handleFullEmojiReaction = (messageId, emojiData) => {
-    handleReaction(messageId, emojiData.emoji);
+  const openFullReactionPicker = (event, messageId) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+
+    const width = Math.min(330, window.innerWidth - 24);
+
+    const height = Math.min(400, window.innerHeight - 40);
+
+    let left = rect.left;
+
+    if (left + width > window.innerWidth - 12) {
+      left = window.innerWidth - width - 12;
+    }
+
+    left = Math.max(12, left);
+
+    let top = rect.top - height - 10;
+
+    if (top < 12) {
+      top = rect.bottom + 10;
+    }
+
+    if (top + height > window.innerHeight - 12) {
+      top = Math.max(12, window.innerHeight - height - 12);
+    }
+
+    setFullReactionPicker({
+      messageId,
+      left,
+      top,
+      width,
+      height,
+    });
+
+    setReactionMessageId(null);
   };
 
   const startEditing = (message) => {
@@ -120,7 +185,7 @@ const MessageList = ({ messages }) => {
 
     setActionMessageId(null);
     setReactionMessageId(null);
-    setFullReactionPickerMessageId(null);
+    setFullReactionPicker(null);
   };
 
   const cancelEditing = () => {
@@ -143,473 +208,422 @@ const MessageList = ({ messages }) => {
     cancelEditing();
   };
 
-  const handleDelete = (messageId) => {
-    if (!socket) {
-      return;
-    }
-
-    const confirmed = window.confirm("Delete this message?");
-
-    if (!confirmed) {
-      return;
-    }
-
-    socket.emit("delete_message", messageId);
+  const requestDelete = (message) => {
+    setDeleteTarget(message);
 
     setActionMessageId(null);
     setReactionMessageId(null);
-    setFullReactionPickerMessageId(null);
+    setFullReactionPicker(null);
+  };
+
+  const confirmDelete = () => {
+    if (!socket || !deleteTarget) {
+      return;
+    }
+
+    socket.emit("delete_message", deleteTarget._id);
+
+    setDeleteTarget(null);
   };
 
   if (!messages || messages.length === 0) {
     return (
-      <div className="flex-grow-1 d-flex align-items-center justify-content-center bg-light">
-        <div className="text-center text-muted px-4">
-          <div
-            className="rounded-circle bg-white shadow-sm d-flex align-items-center justify-content-center mx-auto mb-3"
-            style={{
-              width: "70px",
-              height: "70px",
-            }}
-          >
-            <FontAwesomeIcon
-              icon={faComments}
-              size="2x"
-              className="text-primary"
-            />
-          </div>
-
-          <h6 className="fw-semibold">No messages yet</h6>
-
-          <p className="mb-0">Send a message to start the conversation.</p>
+      <div className="message-list-empty">
+        <div className="message-empty-icon">
+          <FontAwesomeIcon icon={faComments} />
         </div>
+
+        <h5>Start the conversation</h5>
+
+        <p>Send a message, emoji, image or file to begin chatting.</p>
       </div>
     );
   }
 
   return (
-    <div
-      className="flex-grow-1 overflow-auto bg-light p-3"
-      style={{
-        minHeight: 0,
-      }}
-    >
-      <div className="d-flex flex-column gap-3">
-        {messages.map((message) => {
-          const senderId = message.sender?._id || message.sender;
+    <>
+      <div
+        className="message-list-final"
+        onScroll={() => {
+          if (fullReactionPicker) {
+            setFullReactionPicker(null);
+          }
+        }}
+      >
+        <div className="message-list-inner">
+          {messages.map((message) => {
+            const senderId = message.sender?._id || message.sender;
 
-          const isOwnMessage =
-            senderId?.toString() === currentUserId?.toString();
+            const isOwnMessage =
+              senderId?.toString() === currentUserId?.toString();
 
-          const attachment = message.attachment;
+            const attachment = message.attachment;
 
-          const isImage =
-            !message.isDeleted &&
-            message.messageType === "image" &&
-            attachment?.url;
+            const isImage =
+              !message.isDeleted &&
+              message.messageType === "image" &&
+              attachment?.url;
 
-          const isFile =
-            !message.isDeleted &&
-            message.messageType === "file" &&
-            attachment?.url;
+            const isFile =
+              !message.isDeleted &&
+              message.messageType === "file" &&
+              attachment?.url;
 
-          const isEditing = editingMessageId === message._id;
+            const isEditing = editingMessageId === message._id;
 
-          const showActions = actionMessageId === message._id;
+            const showActions = actionMessageId === message._id;
 
-          const showReactions = reactionMessageId === message._id;
+            const showReactions = reactionMessageId === message._id;
 
-          const showFullReactionPicker =
-            fullReactionPickerMessageId === message._id;
+            const senderName = message.sender?.name || "User";
 
-          return (
-            <div
-              key={message._id}
-              className={`d-flex ${
-                isOwnMessage ? "justify-content-end" : "justify-content-start"
-              }`}
-            >
+            return (
               <div
-                className="position-relative"
-                style={{
-                  maxWidth: "78%",
-                }}
+                key={message._id}
+                className={`message-row ${
+                  isOwnMessage ? "message-row-own" : "message-row-received"
+                }`}
               >
-                <div
-                  className={`px-3 py-2 rounded-4 shadow-sm ${
-                    isOwnMessage ? "bg-primary text-white" : "bg-white border"
-                  }`}
-                  style={{
-                    minWidth: "90px",
-                  }}
-                >
-                  {message.isDeleted ? (
-                    <div
-                      className={`small fst-italic ${
-                        isOwnMessage ? "text-white-50" : "text-muted"
-                      }`}
-                    >
-                      This message was deleted
-                    </div>
-                  ) : (
-                    <>
-                      {isImage && (
-                        <div className="mb-2">
+                <div className="message-stack">
+                  {isGroup && !isOwnMessage && !message.isDeleted && (
+                    <div className="message-sender-name">{senderName}</div>
+                  )}
+
+                  <div
+                    className={`message-bubble ${
+                      isOwnMessage
+                        ? "message-bubble-own"
+                        : "message-bubble-received"
+                    } ${message.isDeleted ? "message-bubble-deleted" : ""}`}
+                  >
+                    {message.isDeleted ? (
+                      <div className="message-deleted-text">
+                        <FontAwesomeIcon icon={faTrash} className="me-2" />
+                        This message was deleted
+                      </div>
+                    ) : (
+                      <>
+                        {isImage && (
                           <a
                             href={attachment.url}
                             target="_blank"
                             rel="noreferrer"
+                            className="message-image-link"
                           >
                             <img
                               src={attachment.url}
                               alt={attachment.originalName || "Attachment"}
-                              className="img-fluid rounded-3"
-                              style={{
-                                maxWidth: "320px",
-                                maxHeight: "320px",
-                                objectFit: "cover",
-                              }}
+                              className="message-image"
                             />
                           </a>
-                        </div>
-                      )}
+                        )}
 
-                      {isFile && (
-                        <a
-                          href={attachment.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={`text-decoration-none d-flex align-items-center gap-3 p-2 rounded-3 mb-2 ${
-                            isOwnMessage
-                              ? "bg-white bg-opacity-10 text-white"
-                              : "bg-light text-dark"
-                          }`}
-                          style={{
-                            minWidth: "220px",
-                          }}
-                        >
-                          <div
-                            className={`rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 ${
-                              isOwnMessage
-                                ? "bg-white bg-opacity-25"
-                                : "bg-white border"
+                        {isFile && (
+                          <a
+                            href={attachment.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`message-file-card ${
+                              isOwnMessage ? "message-file-card-own" : ""
                             }`}
-                            style={{
-                              width: "46px",
-                              height: "46px",
-                            }}
                           >
-                            <FontAwesomeIcon
-                              icon={getFileIcon(attachment.mimeType)}
-                            />
-                          </div>
-
-                          <div className="flex-grow-1 overflow-hidden">
-                            <div className="fw-semibold small text-truncate">
-                              {attachment.originalName}
+                            <div className="message-file-icon">
+                              <FontAwesomeIcon
+                                icon={getFileIcon(attachment.mimeType)}
+                              />
                             </div>
 
-                            <small
-                              className={
-                                isOwnMessage ? "text-white-50" : "text-muted"
+                            <div className="message-file-info">
+                              <strong>{attachment.originalName}</strong>
+
+                              <span>{formatFileSize(attachment.size)}</span>
+                            </div>
+
+                            <div className="message-file-download">
+                              <FontAwesomeIcon icon={faDownload} />
+                            </div>
+                          </a>
+                        )}
+
+                        {isEditing ? (
+                          <div className="message-edit-wrapper">
+                            <textarea
+                              value={editValue}
+                              autoFocus
+                              rows="2"
+                              maxLength={5000}
+                              onChange={(event) =>
+                                setEditValue(event.target.value)
                               }
-                            >
-                              {formatFileSize(attachment.size)}
-                            </small>
-                          </div>
+                              onKeyDown={(event) => {
+                                if (event.key === "Escape") {
+                                  cancelEditing();
+                                }
 
-                          <FontAwesomeIcon icon={faDownload} />
-                        </a>
-                      )}
+                                if (event.key === "Enter" && !event.shiftKey) {
+                                  event.preventDefault();
 
-                      {isEditing ? (
-                        <div>
-                          <textarea
-                            className="form-control form-control-sm"
-                            value={editValue}
-                            autoFocus
-                            rows="2"
-                            maxLength={5000}
-                            onChange={(event) =>
-                              setEditValue(event.target.value)
-                            }
-                          />
-
-                          <div className="d-flex justify-content-end gap-2 mt-2">
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-light rounded-circle d-flex align-items-center justify-content-center"
-                              style={{
-                                width: "32px",
-                                height: "32px",
+                                  saveEdit(message._id);
+                                }
                               }}
-                              title="Cancel edit"
-                              onClick={cancelEditing}
-                            >
-                              <FontAwesomeIcon icon={faXmark} />
-                            </button>
+                            />
 
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-success rounded-circle d-flex align-items-center justify-content-center"
-                              style={{
-                                width: "32px",
-                                height: "32px",
-                              }}
-                              title="Save changes"
-                              disabled={!editValue.trim()}
-                              onClick={() => saveEdit(message._id)}
-                            >
-                              <FontAwesomeIcon icon={faSave} />
-                            </button>
+                            <div className="message-edit-actions">
+                              <button
+                                type="button"
+                                className="message-edit-cancel"
+                                title="Cancel"
+                                onClick={cancelEditing}
+                              >
+                                <FontAwesomeIcon icon={faXmark} />
+                              </button>
+
+                              <button
+                                type="button"
+                                className="message-edit-save"
+                                title="Save"
+                                disabled={!editValue.trim()}
+                                onClick={() => saveEdit(message._id)}
+                              >
+                                <FontAwesomeIcon icon={faCheck} />
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        message.content && (
-                          <div
-                            className="small"
-                            style={{
-                              whiteSpace: "pre-wrap",
-
-                              overflowWrap: "anywhere",
-                            }}
-                          >
-                            {message.content}
-                          </div>
-                        )
-                      )}
-                    </>
-                  )}
-
-                  <div
-                    className={`d-flex justify-content-end align-items-center gap-1 small mt-1 ${
-                      isOwnMessage ? "text-white-50" : "text-muted"
-                    }`}
-                  >
-                    {message.isEdited && !message.isDeleted && (
-                      <span
-                        style={{
-                          fontSize: "10px",
-                        }}
-                      >
-                        edited
-                      </span>
-                    )}
-
-                    <span>
-                      {new Date(message.createdAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-
-                    {isOwnMessage && (
-                      <FontAwesomeIcon
-                        icon={message.isRead ? faCheckDouble : faCheck}
-                        className={message.isRead ? "text-info" : ""}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {!message.isDeleted && message.reactions?.length > 0 && (
-                  <div
-                    className={`d-flex flex-wrap gap-1 mt-1 ${
-                      isOwnMessage
-                        ? "justify-content-end"
-                        : "justify-content-start"
-                    }`}
-                  >
-                    {message.reactions.map((reaction) => {
-                      const reactedByMe = reaction.users?.some(
-                        (reactionUserId) =>
-                          reactionUserId?.toString() ===
-                          currentUserId?.toString(),
-                      );
-
-                      return (
-                        <button
-                          key={reaction.emoji}
-                          type="button"
-                          className={`btn btn-sm rounded-pill py-0 px-2 ${
-                            reactedByMe ? "btn-primary" : "btn-light border"
-                          }`}
-                          onClick={() =>
-                            handleReaction(message._id, reaction.emoji)
-                          }
-                        >
-                          <span>{reaction.emoji}</span>
-
-                          <span className="ms-1 small">
-                            {reaction.users?.length}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {!message.isDeleted && !isEditing && (
-                  <div
-                    className={`d-flex align-items-center gap-1 mt-1 ${
-                      isOwnMessage
-                        ? "justify-content-end"
-                        : "justify-content-start"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-light border rounded-circle d-flex align-items-center justify-content-center"
-                      style={{
-                        width: "28px",
-                        height: "28px",
-                      }}
-                      title="Message actions"
-                      onClick={() => {
-                        setActionMessageId(showActions ? null : message._id);
-
-                        setReactionMessageId(null);
-
-                        setFullReactionPickerMessageId(null);
-                      }}
-                    >
-                      <FontAwesomeIcon
-                        icon={showActions ? faXmark : faEllipsisVertical}
-                        size="xs"
-                      />
-                    </button>
-
-                    {showActions && (
-                      <>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-light border rounded-circle"
-                          title="React"
-                          onClick={() => {
-                            setReactionMessageId(
-                              showReactions ? null : message._id,
-                            );
-
-                            setFullReactionPickerMessageId(null);
-                          }}
-                        >
-                          <FontAwesomeIcon icon={faFaceSmile} />
-                        </button>
-
-                        {isOwnMessage && (
-                          <>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-light border rounded-circle"
-                              title="Edit"
-                              onClick={() => startEditing(message)}
-                            >
-                              <FontAwesomeIcon icon={faPen} />
-                            </button>
-
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-light border text-danger rounded-circle"
-                              title="Delete"
-                              onClick={() => handleDelete(message._id)}
-                            >
-                              <FontAwesomeIcon icon={faTrash} />
-                            </button>
-                          </>
+                        ) : (
+                          message.content && (
+                            <div className="message-content">
+                              {message.content}
+                            </div>
+                          )
                         )}
                       </>
                     )}
+
+                    <div className="message-meta">
+                      {message.isEdited && !message.isDeleted && (
+                        <span className="message-edited-label">edited</span>
+                      )}
+
+                      <span>
+                        {new Date(message.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+
+                      {isOwnMessage && (
+                        <FontAwesomeIcon
+                          icon={message.isRead ? faCheckDouble : faCheck}
+                          className={message.isRead ? "message-read-icon" : ""}
+                        />
+                      )}
+                    </div>
                   </div>
-                )}
 
-                {showReactions && !message.isDeleted && (
-                  <div
-                    className={`position-absolute bg-white border rounded-pill shadow-sm p-1 d-flex align-items-center gap-1 ${
-                      isOwnMessage ? "end-0" : "start-0"
-                    }`}
-                    style={{
-                      bottom: "-43px",
-                      zIndex: 30,
-                    }}
-                  >
-                    {QUICK_REACTIONS.map((emoji) => (
-                      <button
-                        key={emoji}
-                        type="button"
-                        className="btn btn-sm border-0 px-1"
-                        style={{
-                          fontSize: "19px",
-                        }}
-                        onClick={() => handleReaction(message._id, emoji)}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
-
+                  {!message.isDeleted && message.reactions?.length > 0 && (
                     <div
-                      style={{
-                        width: "1px",
-                        height: "22px",
-                        background: "#dee2e6",
-                      }}
-                    />
-
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-light rounded-circle d-flex align-items-center justify-content-center"
-                      style={{
-                        width: "30px",
-                        height: "30px",
-                      }}
-                      title="More reactions"
-                      onClick={() =>
-                        setFullReactionPickerMessageId(
-                          showFullReactionPicker ? null : message._id,
-                        )
-                      }
+                      className={`message-reaction-chips ${
+                        isOwnMessage ? "message-reaction-chips-own" : ""
+                      }`}
                     >
-                      <FontAwesomeIcon icon={faPlus} />
-                    </button>
-                  </div>
-                )}
+                      {message.reactions.map((reaction) => {
+                        const reactedByMe = reaction.users?.some(
+                          (reactionUserId) =>
+                            reactionUserId?.toString() ===
+                            currentUserId?.toString(),
+                        );
 
-                {showFullReactionPicker && !message.isDeleted && (
-                  <div
-                    className={`position-absolute shadow rounded-3 ${
-                      isOwnMessage ? "end-0" : "start-0"
-                    }`}
-                    style={{
-                      bottom: "-470px",
-                      zIndex: 50,
-                    }}
-                  >
-                    <EmojiPicker
-                      onEmojiClick={(emojiData) =>
-                        handleFullEmojiReaction(message._id, emojiData)
-                      }
-                      width={330}
-                      height={400}
-                      searchPlaceHolder="Search reaction..."
-                      previewConfig={{
-                        showPreview: false,
-                      }}
-                      lazyLoadEmojis
-                    />
-                  </div>
-                )}
+                        return (
+                          <button
+                            key={reaction.emoji}
+                            type="button"
+                            className={`message-reaction-chip ${
+                              reactedByMe ? "active" : ""
+                            }`}
+                            onClick={() =>
+                              handleReaction(message._id, reaction.emoji)
+                            }
+                          >
+                            <span>{reaction.emoji}</span>
+
+                            <strong>{reaction.users?.length}</strong>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {!message.isDeleted && !isEditing && (
+                    <div
+                      className={`message-action-area ${
+                        isOwnMessage ? "message-action-area-own" : ""
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        className="message-action-trigger"
+                        title="Message actions"
+                        onClick={() => {
+                          setActionMessageId(showActions ? null : message._id);
+
+                          setReactionMessageId(null);
+
+                          setFullReactionPicker(null);
+                        }}
+                      >
+                        <FontAwesomeIcon
+                          icon={showActions ? faXmark : faEllipsisVertical}
+                        />
+                      </button>
+
+                      {showActions && (
+                        <div className="message-action-menu">
+                          <button
+                            type="button"
+                            title="React"
+                            onClick={() => {
+                              setReactionMessageId(
+                                showReactions ? null : message._id,
+                              );
+                            }}
+                          >
+                            <FontAwesomeIcon icon={faFaceSmile} />
+                          </button>
+
+                          {isOwnMessage && (
+                            <>
+                              <button
+                                type="button"
+                                title="Edit message"
+                                onClick={() => startEditing(message)}
+                              >
+                                <FontAwesomeIcon icon={faPen} />
+                              </button>
+
+                              <button
+                                type="button"
+                                className="danger"
+                                title="Delete message"
+                                onClick={() => requestDelete(message)}
+                              >
+                                <FontAwesomeIcon icon={faTrash} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {showReactions && !message.isDeleted && (
+                    <div
+                      className={`message-quick-reactions ${
+                        isOwnMessage ? "message-quick-reactions-own" : ""
+                      }`}
+                    >
+                      {QUICK_REACTIONS.map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => handleReaction(message._id, emoji)}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+
+                      <span className="message-reaction-divider" />
+
+                      <button
+                        type="button"
+                        className="message-more-reactions"
+                        title="More reactions"
+                        onClick={(event) =>
+                          openFullReactionPicker(event, message._id)
+                        }
+                      >
+                        <FontAwesomeIcon icon={faPlus} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          <div ref={messagesEndRef} className="message-list-end" />
+        </div>
+      </div>
+
+      {fullReactionPicker &&
+        createPortal(
+          <div
+            className="message-full-emoji-picker"
+            style={{
+              left: fullReactionPicker.left,
+              top: fullReactionPicker.top,
+              width: fullReactionPicker.width,
+            }}
+          >
+            <EmojiPicker
+              onEmojiClick={(emojiData) =>
+                handleReaction(fullReactionPicker.messageId, emojiData.emoji)
+              }
+              width={fullReactionPicker.width}
+              height={fullReactionPicker.height}
+              searchPlaceHolder="Search reaction..."
+              previewConfig={{
+                showPreview: false,
+              }}
+              lazyLoadEmojis
+            />
+          </div>,
+          document.body,
+        )}
+
+      {deleteTarget &&
+        createPortal(
+          <div
+            className="message-delete-overlay"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setDeleteTarget(null);
+              }
+            }}
+          >
+            <div className="message-delete-modal">
+              <div className="message-delete-icon">
+                <FontAwesomeIcon icon={faTriangleExclamation} />
+              </div>
+
+              <h5>Delete message?</h5>
+
+              <p>
+                This message will be removed for everyone in this conversation.
+              </p>
+
+              <div className="message-delete-actions">
+                <button
+                  type="button"
+                  className="message-delete-cancel"
+                  onClick={() => setDeleteTarget(null)}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  className="message-delete-confirm"
+                  onClick={confirmDelete}
+                >
+                  <FontAwesomeIcon icon={faTrash} className="me-2" />
+                  Delete
+                </button>
               </div>
             </div>
-          );
-        })}
-
-        <div
-          ref={messagesEndRef}
-          style={{
-            height: "1px",
-          }}
-        />
-      </div>
-    </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 };
 
